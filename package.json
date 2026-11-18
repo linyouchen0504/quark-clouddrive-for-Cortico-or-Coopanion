@@ -1,0 +1,48 @@
+{
+  "name": "cortico-world-quark",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "夸克网盘 World：接授权码登录，展示账号昵称、网盘空间与会员状态",
+  "license": "MIT",
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "quark",
+    "quarkclouddrive"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.28.6",
+  "main": "./src/index.ts",
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "displayName": "夸克网盘",
+    "webUiClient": "dist/webui.js",
+    "describe": "describe.json",
+    "tags": ["apps", "requires-key"]
+  },
+  "files": [
+    "src",
+    "skill",
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "describe.json"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "build:webui": "node scripts/build-webui.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "cortico": "^0.2.16",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
