@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { QUARK } from '../src/definition.ts';
 import { QUARK_TOOL_DECLS } from '../src/world.ts';
 import type { World } from 'cortico/core/types.ts';
+import type { QuarkPanelState } from '../src/config.ts';
 
 class Host {
   events: Array<Record<string, unknown>> = [];
@@ -87,6 +88,44 @@ describe('world', () => {
     expect(stored).toBe('abcdef123456');
     expect(state).toMatchObject({ authCodeSet: true, maskedAuthCode: 'abcd…56' });
     expect(JSON.stringify(state)).not.toContain('abcdef123456');
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('每次操作前需确认', () => {
+  it('开关打开时，操作先挂起并说明在等确认', async () => {
+    const { world, dir } = makeWorld();
+    const ui = world.webUi!('zh');
+    const invoke = ui.invoke!;
+    void ui;
+    const state = await invoke('account', 'state', []) as QuarkPanelState;
+    expect(state.confirmBeforeOp).toBe(true);
+    // 同意放行一次后，待确认卡应消失
+    const answer = await invoke('auth', 'confirm', ['confirm']) as QuarkPanelState;
+    expect(answer.message).toContain('可以继续');
+    expect(answer.pendingConfirm).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('开关关掉时不挂起', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'quark-confirm-'));
+    const world = QUARK.create({
+      id: 'quark',
+      cfg: { ...QUARK.defaults(), enabled: true, confirmBeforeOp: false },
+      timezone: 'Asia/Shanghai',
+      botName: '测试',
+      botDir: dir,
+      packageDir: dir,
+      dataDir: dir,
+      repoRoot: dir,
+      secret: () => '',
+      storeSecret: () => {},
+      persist: () => {},
+      restart: async () => {},
+    });
+    const invoke = world.webUi!('zh').invoke!;
+    const state = await invoke('account', 'state', []) as QuarkPanelState;
+    expect(state.confirmBeforeOp).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 });

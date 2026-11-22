@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-quark",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "夸克网盘 World：接授权码登录，展示账号昵称、网盘空间与会员状态",
   "license": "MIT",
@@ -21,7 +21,10 @@
     "displayName": "夸克网盘",
     "webUiClient": "dist/webui.js",
     "describe": "describe.json",
-    "tags": ["apps", "requires-key"]
+    "tags": [
+      "apps",
+      "requires-key"
+    ]
   },
   "files": [
     "src",

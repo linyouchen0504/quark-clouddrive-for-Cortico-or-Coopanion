@@ -24,6 +24,12 @@ export interface QuarkPanelState {
   maskedAuthCode: string | null;
   /** 上一次操作的说明；没有则为 null。 */
   message: string | null;
+  /** 是否处于“每次操作前需确认”模式。 */
+  pendingConfirm: boolean;
+  /** 等待确认的操作类型。 */
+  confirmAction: string | null;
+  /** “每次操作前需确认”开关的当前值。 */
+  confirmBeforeOp: boolean;
 }
 
 /** config.json 的 `worlds.quark` 节。 */
@@ -31,11 +37,15 @@ export interface QuarkConfigSection {
   enabled: boolean;
   /** CLI 一次调用的超时毫秒数。 */
   timeoutMs: number;
+  /** 每次操作前是否需要确认。 */
+  confirmBeforeOp: boolean;
 }
 
+/** 默认值。 */
 export const QUARK_DEFAULTS = {
   enabled: false,
   timeoutMs: CLI_TIMEOUT_MS,
+  confirmBeforeOp: true,
 } as const;
 
 /** 中文文案。界面是别的语言时由 strings.<语言>.ts 覆盖。 */
@@ -69,6 +79,16 @@ export const text = {
   unknownPanel: (panel: string) => `未知面板：${panel}`,
   unknownMethod: (method: string) => `未知方法：${method}`,
   unauthorized: '当前未授权或授权已过期，请填授权码后重试。',
+  /** 确认对话框文案 */
+  confirmTitle: '确认操作',
+  confirmBody: 'AI 想要进行网盘操作，是否继续？',
+  confirmYes: '同意',
+  confirmNo: '拒绝',
+  confirmed: '已确认，AI 可以继续操作',
+  rejected: '已拒绝，AI 本次不继续操作',
+  /** 文件操作相关 */
+  fileOpTitle: '文件操作',
+  fileOpDesc: '如上传、下载、重命名、移动等',
 } as const;
 
 /** 本 World 声明的可调项：只暴露 CLI 超时，其余走密钥与面板。 */
@@ -91,6 +111,12 @@ export function quarkConfigGroup(language: Language): ConfigGroup {
           'x-suffix': 's',
           'x-hot': true,
           description: '调用夸克网盘命令行工具的上限。',
+        },
+        'worlds.quark.confirmBeforeOp': {
+          type: 'boolean',
+          title: '每次操作前需确认',
+          'x-hot': true,
+          description: '打开后 AI 想要管理文件时会先询问用户，用户在面板里点击同意或拒绝。',
         },
       },
     },

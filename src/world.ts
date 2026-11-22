@@ -53,6 +53,19 @@ export const QUARK_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
     tags: ['act'],
     parameters: { type: 'object', additionalProperties: false, properties: {} },
   },
+  {
+    name: 'qk_confirm',
+    description: '回应“每次操作前需确认”的询问：同意则本次操作继续，拒绝则本次不继续。',
+    tags: ['write'],
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        action: { type: 'string', enum: ['confirm', 'reject'] },
+      },
+      required: ['action'],
+    },
+  },
 ];
 
 export interface QuarkWorldOptions {
@@ -72,6 +85,15 @@ export class QuarkWorld implements World {
   /** 最近一次读到的账号信息；启动时为空，面板与工具按需刷新。 */
   private account: QuarkAccount | null = null;
 
+  /** 有一次操作正在等用户确认。 */
+  private awaitingConfirm = false;
+
+  /** 正在等确认的操作说明；没有等待时为空串。 */
+  private confirmAction = '';
+
+  /** 用户同意放行的剩余次数；每执行一次操作扣掉一次。 */
+  private granted = 0;
+
   constructor(opts: QuarkWorldOptions) {
     this.opts = opts;
   }
@@ -81,8 +103,13 @@ export class QuarkWorld implements World {
     return {};
   }
 
+  /** 开关开着且没有放行余额时，下一次网盘操作要先问过用户。 */
+  private needsConfirm(): boolean {
+    return this.opts.cfg.confirmBeforeOp && this.granted <= 0;
+  }
+
   tools(): ToolDef[] {
-    return [this.getUserInfoTool(), this.loginTool(), this.unauthorizeTool()];
+    return [this.getUserInfoTool(), this.loginTool(), this.unauthorizeTool(), this.confirmTool()];
   }
 
   webUi(language: Language = 'zh'): WorldWebUiDecl {
@@ -140,6 +167,9 @@ export class QuarkWorld implements World {
       authCodeSet: !!code,
       maskedAuthCode: code ? maskAuthCode(code) : null,
       message: null,
+      pendingConfirm: this.awaitingConfirm,
+      confirmAction: this.awaitingConfirm ? this.confirmAction : null,
+      confirmBeforeOp: this.opts.cfg.confirmBeforeOp,
     };
   }
 
@@ -157,6 +187,9 @@ export class QuarkWorld implements World {
         const { rm } = await import('node:fs/promises');
         await rm(dir, { recursive: true, force: true });
         this.account = null;
+        this.awaitingConfirm = false;
+        this.confirmAction = '';
+        this.granted = 0;
         return '已清除登录态';
       },
     };
@@ -177,6 +210,8 @@ export class QuarkWorld implements World {
           return this.login(String(args[0] ?? ''));
         case 'logout':
           return this.logout();
+        case 'confirm':
+          return this.answerConfirm(args[0]);
         default:
           throw new Error(text.unknownMethod(method));
       }
@@ -195,11 +230,18 @@ export class QuarkWorld implements World {
     if (!value) value = this.opts.secret(QUARK_SECRETS.authCode).trim();
     if (!value) return { ...this.panelState(), message: text.unauthorized };
     try {
+      if (this.needsConfirm()) {
+        this.awaitingConfirm = true;
+        this.confirmAction = '登录';
+        this.granted = 0;
+        return { ...this.panelState(), message: `${text.confirmBody}（登录）` };
+      }
       const result = await loginWithCode(value, this.runOptions());
       if (result.code !== 0) return { ...this.panelState(), message: text.authFailed(result.msg) };
       // 登录工具本身会顺带取一次用户信息；取不到再单独读一次，让页面立刻有账号信息。
       this.account = toAccount(result);
       if (!this.account.nickname) await this.readAccount();
+      this.granted -= 1;
       return { ...this.panelState(), message: this.account.nickname ? text.loginOk(this.account.nickname) : '已登录' };
     } catch (error) {
       return { ...this.panelState(), message: error instanceof Error ? error.message : String(error) };
@@ -208,9 +250,16 @@ export class QuarkWorld implements World {
 
   private async logout(): Promise<QuarkPanelState> {
     try {
+      if (this.needsConfirm()) {
+        this.awaitingConfirm = true;
+        this.confirmAction = '解除授权';
+        this.granted = 0;
+        return { ...this.panelState(), message: `${text.confirmBody}（解除授权）` };
+      }
       const result = await unauthorize(this.runOptions());
       if (result.code !== 0) return { ...this.panelState(), message: result.msg };
       const url = typeof result.data.revokeUrl === 'string' ? result.data.revokeUrl : '';
+      this.granted -= 1;
       return { ...this.panelState(), message: url ? `解绑地址：${url}` : '已解除授权' };
     } catch (error) {
       return { ...this.panelState(), message: error instanceof Error ? error.message : String(error) };
@@ -280,6 +329,7 @@ export class QuarkWorld implements World {
   private runOptions() {
     return {
       cwd: this.opts.botDir,
+      dshHome: this.opts.botDir,
       timeoutMs: this.opts.cfg.timeoutMs || QUARK_DEFAULTS.timeoutMs,
       sessionId: `${Math.floor(Date.now() / 1000)}-${randomBytes(3).toString('hex')}`,
       sessionInput: '夸克网盘适配器',
@@ -289,21 +339,56 @@ export class QuarkWorld implements World {
   // ---------------------------------------------------------------- 工具
 
   private async withAccount<T>(fn: (account: QuarkAccount) => T): Promise<T | string> {
+    // 开关开着时先挂起：回执说明在等确认，并把询问写进事件流，面板据此亮出待确认卡。
+    if (this.needsConfirm()) {
+      this.awaitingConfirm = true;
+      this.confirmAction = '读取账号信息';
+      this.granted = 0;
+      return `${text.confirmBody}（${this.confirmAction}）`;
+    }
     try {
       const result = await fetchUserInfo(this.runOptions());
+      // 这次操作已被消费：无论成功还是被 CLI 拒绝，都不该再白拿一次放行。
+      this.awaitingConfirm = false;
+      this.confirmAction = '';
+      this.granted -= 1;
       if (result.code !== 0) return result.msg;
       this.account = toAccount(result);
       return fn(this.account);
     } catch (error) {
+      this.awaitingConfirm = false;
+      this.confirmAction = '';
+      this.granted -= 1;
       if (error instanceof QuarkCliError) return error.message;
       return error instanceof Error ? error.message : String(error);
     }
+  }
+
+  /** 用户回执：同意后放行本次操作，拒绝后本次不再继续。 */
+  private async answerConfirm(action: unknown): Promise<QuarkPanelState> {
+    const answer = action === 'confirm' ? 'confirm' : 'reject';
+    if (answer === 'confirm') {
+      this.awaitingConfirm = false;
+      this.confirmAction = '';
+      this.granted = 1;
+      return { ...this.panelState(), message: text.confirmed };
+    }
+    this.awaitingConfirm = false;
+    this.confirmAction = '';
+    this.granted = 0;
+    return { ...this.panelState(), message: text.rejected };
   }
 
   private getUserInfoTool(): ToolDef {
     return {
       ...QUARK_TOOL_DECLS[0],
       handler: async () => {
+        // 开关开着时先挂起：回执说明在等确认，AI 等用户在面板里回应后再调一次。
+        if (this.needsConfirm()) {
+          this.awaitingConfirm = true;
+          this.confirmAction = '读取账号信息';
+          return `${text.confirmBody}（${this.confirmAction}）`;
+        }
         const outcome = await this.withAccount((account) => {
           const storage = account.capacity !== null
             ? `，网盘空间 ${formatBytes(account.used ?? 0)} / ${formatBytes(account.capacity)}`
@@ -345,6 +430,16 @@ export class QuarkWorld implements World {
         } catch (error) {
           return error instanceof Error ? error.message : String(error);
         }
+      },
+    };
+  }
+
+  /** 回应待确认的操作；面板的同意/拒绝也走这里。 */
+  private confirmTool(): ToolDef {
+    return {
+      ...QUARK_TOOL_DECLS[3],
+      handler: async (args) => {
+        return args.action === 'confirm' ? text.confirmed : text.rejected;
       },
     };
   }

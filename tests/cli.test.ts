@@ -74,3 +74,12 @@ describe('maskAuthCode / formatBytes', () => {
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
   });
 });
+
+describe('childEnv', () => {
+  it('给命令行工具补上识别 agent 的 DSH_HOME', async () => {
+    // 工具按环境变量识别运行环境；部署里没有 DSH_* 时它会报 -104。
+    const { childEnv } = await import('../src/cli.ts');
+    const env = childEnv('/tmp/deploy');
+    expect(env.DSH_HOME).toBe('/tmp/deploy');
+  });
+});

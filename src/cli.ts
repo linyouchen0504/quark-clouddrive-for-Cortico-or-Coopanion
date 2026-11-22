@@ -30,13 +30,24 @@ export interface QuarkResult {
 export class QuarkCliError extends Error {}
 
 export interface RunOptions {
-  /** 工作目录；工具把登录态写在 `<cwd>/.quarkclouddrive/`。 */
+  /** 工具的工作目录；登录态写在它下面的 `.quarkclouddrive/`。 */
   cwd: string;
   timeoutMs: number;
   /** 会话标识，同一对话内复用。 */
   sessionId: string;
   /** 触发本次调用的用户原话。 */
   sessionInput: string;
+  /** 给工具的 DSH_HOME；工具把配置写到 `<DSH_HOME>/skills/quarkclouddrive/`。 */
+  dshHome: string;
+}
+
+/**
+ * 命令行工具用环境变量识别自己跑在哪种 agent 里，识别不到就抛「无法识别当前 Agent 环境」。
+ * 部署环境通常没有这些变量，所以显式补上 `DSH_HOME` 指回部署目录：
+ * 工具按它定位配置，登录态跟着部署走。
+ */
+export function childEnv(dshHome: string): NodeJS.ProcessEnv {
+  return { ...process.env, DSH_HOME: dshHome };
 }
 
 const AUTH_CODE_PATTERN = /^[A-Za-z0-9._~-]+$/;
@@ -73,7 +84,7 @@ export async function runCli(args: string[], opts: RunOptions): Promise<QuarkRes
   const settled = await execFileAsync(
     process.execPath,
     [CLI_PATH, ...args, ...common],
-    { cwd: opts.cwd, timeout: Math.max(1000, Math.floor(opts.timeoutMs)), maxBuffer: 8 * 1024 * 1024 },
+    { cwd: opts.cwd, env: childEnv(opts.dshHome), timeout: Math.max(1000, Math.floor(opts.timeoutMs)), maxBuffer: 8 * 1024 * 1024 },
   ).catch((error) => {
     if (error && typeof error === 'object' && 'stdout' in error) return error as { stdout?: string };
     throw error;

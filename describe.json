@@ -48,6 +48,29 @@
         "zh": "解除授权并给出解绑地址。",
         "en": "Revokes the authorization and returns the revoke URL."
       }
+    },
+    {
+      "name": "qk_confirm",
+      "description": "回应“每次操作前需确认”的询问：同意则本次操作继续，拒绝则本次不继续。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "confirm",
+              "reject"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "tags": [
+        "write"
+      ]
     }
   ],
   "events": [
