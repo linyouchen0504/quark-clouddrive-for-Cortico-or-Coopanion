@@ -71,6 +71,91 @@
       "tags": [
         "write"
       ]
+    },
+    {
+      "name": "qk_search",
+      "description": "按关键词搜索网盘文件，返回文件名、大小、类型、FID 等。可选限定目录 FID、搜索类型、单页大小。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "搜索关键词，最大 50 字符"
+          },
+          "parentFid": {
+            "type": "string",
+            "description": "限定搜索目录 FID，缺省为全盘"
+          },
+          "searchType": {
+            "type": "string",
+            "description": "搜索类型：mix/video/album/doc/audio/dir/package/other/app，缺省 mix"
+          },
+          "size": {
+            "type": "integer",
+            "description": "单页结果数量，范围 1～100，缺省 100"
+          }
+        },
+        "required": [
+          "keyword"
+        ]
+      },
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "name": "qk_browse",
+      "description": "列出指定目录的直接子项，返回文件列表。可选父目录 FID、单页大小、是否获取全部子项。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parentFid": {
+            "type": "string",
+            "description": "父目录 FID，缺省为根目录 0"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "单页大小，范围 1～100，缺省 100"
+          },
+          "all": {
+            "type": "boolean",
+            "description": "是否获取全部直接子项，缺省 false"
+          }
+        }
+      },
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "name": "qk_download",
+      "description": "下载网盘文件到本地，返回下载任务与本地保存路径。需要文件 FID。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fid": {
+            "type": "string",
+            "description": "要下载的文件 FID"
+          },
+          "outputDir": {
+            "type": "string",
+            "description": "输出目录，缺省 ./downloads"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "同名文件时是否覆盖，缺省自动重命名"
+          }
+        },
+        "required": [
+          "fid"
+        ]
+      },
+      "tags": [
+        "act"
+      ]
     }
   ],
   "events": [

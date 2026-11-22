@@ -23,10 +23,12 @@ import {
   formatBytes,
   loginWithCode,
   maskAuthCode,
+  runCli,
   toAccount,
   unauthorize,
   vipLabel,
   type QuarkAccount,
+  type QuarkResult,
 } from './cli.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
@@ -64,6 +66,51 @@ export const QUARK_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
         action: { type: 'string', enum: ['confirm', 'reject'] },
       },
       required: ['action'],
+    },
+  },
+  {
+    name: 'qk_search',
+    description: '按关键词搜索网盘文件，返回文件名、大小、类型、FID 等。可选限定目录 FID、搜索类型、单页大小。',
+    tags: ['read'],
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        keyword: { type: 'string', description: '搜索关键词，最大 50 字符' },
+        parentFid: { type: 'string', description: '限定搜索目录 FID，缺省为全盘' },
+        searchType: { type: 'string', description: '搜索类型：mix/video/album/doc/audio/dir/package/other/app，缺省 mix' },
+        size: { type: 'integer', description: '单页结果数量，范围 1～100，缺省 100' },
+      },
+      required: ['keyword'],
+    },
+  },
+  {
+    name: 'qk_browse',
+    description: '列出指定目录的直接子项，返回文件列表。可选父目录 FID、单页大小、是否获取全部子项。',
+    tags: ['read'],
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        parentFid: { type: 'string', description: '父目录 FID，缺省为根目录 0' },
+        pageSize: { type: 'integer', description: '单页大小，范围 1～100，缺省 100' },
+        all: { type: 'boolean', description: '是否获取全部直接子项，缺省 false' },
+      },
+    },
+  },
+  {
+    name: 'qk_download',
+    description: '下载网盘文件到本地，返回下载任务与本地保存路径。需要文件 FID。',
+    tags: ['act'],
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        fid: { type: 'string', description: '要下载的文件 FID' },
+        outputDir: { type: 'string', description: '输出目录，缺省 ./downloads' },
+        overwrite: { type: 'boolean', description: '同名文件时是否覆盖，缺省自动重命名' },
+      },
+      required: ['fid'],
     },
   },
 ];
@@ -109,7 +156,7 @@ export class QuarkWorld implements World {
   }
 
   tools(): ToolDef[] {
-    return [this.getUserInfoTool(), this.loginTool(), this.unauthorizeTool(), this.confirmTool()];
+    return [this.getUserInfoTool(), this.loginTool(), this.unauthorizeTool(), this.confirmTool(), this.searchTool(), this.browseTool(), this.downloadTool()];
   }
 
   webUi(language: Language = 'zh'): WorldWebUiDecl {
@@ -442,5 +489,118 @@ export class QuarkWorld implements World {
         return args.action === 'confirm' ? text.confirmed : text.rejected;
       },
     };
+  }
+
+  /** 按关键词搜索网盘文件。 */
+  private searchTool(): ToolDef {
+    return {
+      ...QUARK_TOOL_DECLS[4],
+      handler: async (args) => {
+        const keyword = typeof args.keyword === 'string' ? args.keyword.trim() : '';
+        if (!keyword) return '关键词不能为空';
+        const cliArgs: string[] = ['search', '--keyword', keyword];
+        if (args.parentFid) cliArgs.push('--parent-fid', String(args.parentFid));
+        if (args.searchType) cliArgs.push('--search-type', String(args.searchType));
+        if (args.size !== undefined) cliArgs.push('--size', String(args.size));
+        try {
+          const result = await runCli(cliArgs, this.runOptions());
+          if (result.code !== 0) return result.msg;
+          return this.formatSearchResult(result);
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+    };
+  }
+
+  /** 列出指定目录的直接子项。 */
+  private browseTool(): ToolDef {
+    return {
+      ...QUARK_TOOL_DECLS[5],
+      handler: async (args) => {
+        const cliArgs: string[] = ['browse'];
+        if (args.parentFid) cliArgs.push('--parent-fid', String(args.parentFid));
+        if (args.pageSize !== undefined) cliArgs.push('--page-size', String(args.pageSize));
+        if (args.all === true) cliArgs.push('--all');
+        try {
+          const result = await runCli(cliArgs, this.runOptions());
+          if (result.code !== 0) return result.msg;
+          return this.formatBrowseResult(result);
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+    };
+  }
+
+  /** 下载网盘文件到本地。 */
+  private downloadTool(): ToolDef {
+    return {
+      ...QUARK_TOOL_DECLS[6],
+      handler: async (args) => {
+        const fid = typeof args.fid === 'string' ? args.fid.trim() : '';
+        if (!fid) return '文件 FID 不能为空';
+        const cliArgs: string[] = ['download', '--fid', fid];
+        if (args.outputDir) cliArgs.push('--output-dir', String(args.outputDir));
+        if (args.overwrite === true) cliArgs.push('--overwrite');
+        try {
+          const result = await runCli(cliArgs, this.runOptions());
+          if (result.code !== 0) return result.msg;
+          const data = result.data ?? {};
+          const lines: string[] = [];
+          lines.push(`文件 FID：${fid}`);
+          if (typeof data.localPath === 'string') lines.push(`本地保存：${data.localPath}`);
+          if (typeof data.fileName === 'string') lines.push(`文件名：${data.fileName}`);
+          if (typeof data.size === 'number') lines.push(`大小：${formatBytes(data.size)}`);
+          return lines.join('\n') || '下载任务已提交';
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+    };
+  }
+
+  private formatSearchResult(result: QuarkResult): string {
+    const data = result.data ?? {};
+    const list = Array.isArray(data.file_list) ? data.file_list : [];
+    const total = typeof data.total === 'number' ? data.total : list.length;
+    const lines: string[] = [];
+    lines.push(`共找到 ${total} 个文件，以上为前 ${Math.min(list.length, 5)} 条预览：`);
+    for (const item of list.slice(0, 5)) {
+      const name = typeof item.filename === 'string' ? item.filename : '(未知)';
+      const size = typeof item.size === 'number' ? formatBytes(item.size) : '';
+      const cat = typeof item.category === 'number' ? this.categoryLabel(item.category) : '';
+      lines.push(`- ${name}${size ? ` (${size})` : ''}${cat ? ` · ${cat}` : ''}`);
+    }
+    return lines.join('\n');
+  }
+
+  private formatBrowseResult(result: QuarkResult): string {
+    const data = result.data ?? {};
+    const list = Array.isArray(data.file_list) ? data.file_list : [];
+    const lines: string[] = [];
+    lines.push(`目录下共有 ${list.length} 个直接子项：`);
+    for (const item of list.slice(0, 10)) {
+      const name = typeof item.filename === 'string' ? item.filename : '(未知)';
+      const size = typeof item.size === 'number' ? formatBytes(item.size) : '';
+      const isFolder = typeof item.file_type === 'string' ? item.file_type === '0' : false;
+      lines.push(`- ${name}${isFolder ? ' /' : ''}${size && !isFolder ? ` (${size})` : ''}`);
+    }
+    return lines.join('\n');
+  }
+
+  private categoryLabel(c: number): string {
+    switch (c) {
+      case 0: return '文件夹';
+      case 1: return '视频';
+      case 2: return '音频';
+      case 3: return '图片';
+      case 4: return '文档';
+      case 5: return '种子';
+      case 6: return '其他';
+      case 7: return '压缩包';
+      case 8: return '应用';
+      default: return '未知';
+    }
   }
 }
