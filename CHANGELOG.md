@@ -14,3 +14,7 @@
 修复两个 bug：
 - `qk_download` 读取下载路径字段错误：CLI 返回 `filePath`，代码误读 `localPath`。
 - `qk_search` / `qk_browse` 解析 CLI 输出时取行错误：CLI 输出 result + artifact 两行，旧逻辑取最后一行导致拿到 artifact 行而丢掉 `file_list`。现改为优先取 `type: "result"` 的行。
+
+## 0.3.2
+
+重新发布 0.3.1 修复版本（因 npm 版本发布冲突重新打包）。
