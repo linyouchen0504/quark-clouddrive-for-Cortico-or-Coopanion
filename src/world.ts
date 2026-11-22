@@ -549,7 +549,7 @@ export class QuarkWorld implements World {
           const data = result.data ?? {};
           const lines: string[] = [];
           lines.push(`文件 FID：${fid}`);
-          if (typeof data.localPath === 'string') lines.push(`本地保存：${data.localPath}`);
+          if (typeof data.filePath === 'string') lines.push(`本地保存：${data.filePath}`);
           if (typeof data.fileName === 'string') lines.push(`文件名：${data.fileName}`);
           if (typeof data.size === 'number') lines.push(`大小：${formatBytes(data.size)}`);
           return lines.join('\n') || '下载任务已提交';

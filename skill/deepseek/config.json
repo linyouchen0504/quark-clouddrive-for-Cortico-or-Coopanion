@@ -1,4 +1,18 @@
 {
-  "deviceId": "",
-  "platform": "Linux"
+  "deviceId": "0104d3b85f8bd43cfc4d1ef9030b1f79",
+  "platform": "Linux",
+  "currentUserId": "130671df655a4498b107fcf588446f68",
+  "agent_auth": {
+    "deepseek": {
+      "userId": "130671df655a4498b107fcf588446f68",
+      "login_time": 1795344578446
+    }
+  },
+  "130671df655a4498b107fcf588446f68": {
+    "accessToken": "~1855vw0_5ezz4KBHZdOUURGEX6KE4A1WQStUvTvmxehJmZPyqNJasfbLxV4PP7tsoujdofSvc-sH9l5HxcucnQHEqSOU8Ph089Ri5fvdOuPWafgBm7302JagOxpHKeMGg_GTVIXeOYhAd4EtvrDrC1JhsOT9Gpd6NgoZ4ySFogyEsATjdruLhTj1UqKaZQQdLLen_x4pm-waWBZjpiXC6-njTHhOWMjld10cnHwKNFZJ4yAkNF7ChC0l8TbA9Bi4OIzogcmNNu_VKYRIZdIq1Vsxn-XoFxRrh35sGcJzoTHJKspPL1sbEWVQqJJKIXeogja16rHHP1S7VVozIbr1PvlahFMayIQZjnInANcdlRlZHabvd1MSXUMbV-d85ALJR1czYYgroxC1OrnAeE9w1B9N8O7pQcpRxVDQQ0BH6vjPdqUeBhAhmxTweMwAaltHjaNpyzoNaoQyTgVfnltmeIIde0ccd0GmRmOFx1cnVbrTckyYK9sq4",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsIlR5cGUiOiJKd3QiLCJ0eXAiOiJKV1QifQ.eyJvcGVuSWQiOiIxMzA2NzFkZjY1NWE0NDk4YjEwN2ZjZjU4ODQ0NmY2OCIsImV4cCI6MTgxMDg5NjU3NywidG9rZW4iOiIwYjhkOTgxYzE3ZTM0MzliODJlNWJhYzA3MTEwMzQwNSJ9.PIVgwiSiDHdl3lq4yF7XeA-FW6PvfjTNxxhksgyH6zU",
+    "clientToken": "",
+    "userId": "130671df655a4498b107fcf588446f68",
+    "update_time": 1795344578446
+  }
 }

@@ -52,21 +52,42 @@ export function childEnv(dshHome: string): NodeJS.ProcessEnv {
 
 const AUTH_CODE_PATTERN = /^[A-Za-z0-9._~-]+$/;
 
-/** 解析 stdout 里最后一条 type 为 result 的 JSON 行。 */
+/** 解析 stdout 里最后一条 type 为 result 的 JSON 行；search/browse 会输出 result + artifact 两行。 */
 export function parseResult(stdout: string): QuarkResult | null {
   const lines = stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+  // 优先找 type: "result" 的行（search/browse 会先输出 result 再输出 artifact）
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i]!;
     if (!line.startsWith('{')) continue;
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>;
-      if (parsed.type !== 'result') continue;
-      return {
-        code: typeof parsed.code === 'number' ? parsed.code : 0,
-        msg: typeof parsed.msg === 'string' ? parsed.msg : '',
-        data: (parsed.data && typeof parsed.data === 'object' ? parsed.data : {}) as Record<string, unknown>,
-        notice: (parsed.notice && typeof parsed.notice === 'object' ? parsed.notice : null) as QuarkResult['notice'],
-      };
+      if (parsed.type === 'result') {
+        return {
+          code: typeof parsed.code === 'number' ? parsed.code : 0,
+          msg: typeof parsed.msg === 'string' ? parsed.msg : '',
+          data: (parsed.data && typeof parsed.data === 'object' ? parsed.data : {}) as Record<string, unknown>,
+          notice: (parsed.notice && typeof parsed.notice === 'object' ? parsed.notice : null) as QuarkResult['notice'],
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+  // 兜底：只有单行输出且没有 result type 时才用最后一条合法 JSON
+  // 但必须包含 code/msg 才视为有效结果
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]!;
+    if (!line.startsWith('{')) continue;
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      if (parsed.code !== undefined || parsed.msg !== undefined) {
+        return {
+          code: typeof parsed.code === 'number' ? parsed.code : 0,
+          msg: typeof parsed.msg === 'string' ? parsed.msg : '',
+          data: (parsed.data && typeof parsed.data === 'object' ? parsed.data : {}) as Record<string, unknown>,
+          notice: (parsed.notice && typeof parsed.notice === 'object' ? parsed.notice : null) as QuarkResult['notice'],
+        };
+      }
     } catch {
       continue;
     }
