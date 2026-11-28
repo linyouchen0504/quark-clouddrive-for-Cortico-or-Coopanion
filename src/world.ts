@@ -570,7 +570,9 @@ export class QuarkWorld implements World {
       const name = typeof item.filename === 'string' ? item.filename : '(未知)';
       const size = typeof item.size === 'number' ? formatBytes(item.size) : '';
       const cat = typeof item.category === 'number' ? this.categoryLabel(item.category) : '';
-      lines.push(`- ${name}${size ? ` (${size})` : ''}${cat ? ` · ${cat}` : ''}`);
+      const fid = typeof item.fid === 'string' ? item.fid : '';
+      const fidPart = fid ? ` [fid: ${fid}]` : '';
+      lines.push(`- ${name}${size ? ` (${size})` : ''}${cat ? ` · ${cat}` : ''}${fidPart}`);
     }
     return lines.join('\n');
   }
@@ -584,7 +586,9 @@ export class QuarkWorld implements World {
       const name = typeof item.filename === 'string' ? item.filename : '(未知)';
       const size = typeof item.size === 'number' ? formatBytes(item.size) : '';
       const isFolder = typeof item.file_type === 'string' ? item.file_type === '0' : false;
-      lines.push(`- ${name}${isFolder ? ' /' : ''}${size && !isFolder ? ` (${size})` : ''}`);
+      const fid = typeof item.fid === 'string' ? item.fid : '';
+      const fidPart = fid ? ` [fid: ${fid}]` : '';
+      lines.push(`- ${name}${isFolder ? ' /' : ''}${size && !isFolder ? ` (${size})` : ''}${fidPart}`);
     }
     return lines.join('\n');
   }
